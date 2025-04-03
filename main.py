@@ -11,11 +11,6 @@ from discord import Embed
 from discord.webhook import SyncWebhook
 from markdownify import markdownify as md
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-}
-
-
 cache = {}
 config = {}
 
@@ -37,10 +32,9 @@ if CACHE_PATH.exists():
 
 
 discord_session = requests.Session()
-cfsession = requests.Session()
-cfsession.headers = headers
-scraper = cloudscraper.create_scraper(sess=cfsession)
 webhook = SyncWebhook.from_url(url=config["webhook_url"], session=discord_session)
+
+scraper = cloudscraper.create_scraper()
 
 
 def save_cache():
@@ -49,7 +43,7 @@ def save_cache():
 
 
 def get_listings():
-    r = scraper.get(BASE_URL, headers=headers)
+    r = scraper.get(BASE_URL)
     soup = BeautifulSoup(r.text, "html.parser")
     # get the json content of the script tag with id js-json-data-prefetched-data
     script = soup.find("script", id="js-json-data-prefetched-data")
@@ -79,7 +73,7 @@ def send_to_discord(listing):
     discounted_price = listing["startingPrice"]["discountedPrice"]
     discount_start_date = datetime.fromisoformat(listing["startingPrice"]["discountStartDate"])
     discount_end_date = datetime.fromisoformat(listing["startingPrice"]["discountEndDate"])
-    seller_name = listing["user"]["username"]
+    seller_name = listing["user"]["sellerName"]
     seller_avatar = listing["user"]["profileImageUrl"]
     thumbnail = listing["thumbnails"][0]["mediaUrl"]
 
@@ -139,8 +133,7 @@ def main():
                 time.sleep(1)
 
     except Exception as e:
-        print(e)
-        return
+        raise e
 
 
 if __name__ == "__main__":
