@@ -42,7 +42,18 @@ def save_cache():
 
 
 async def get_listings():
-    browser = await zd.start()
+    browser = await zd.start(
+        headless=True,
+        sandbox=False,
+        browser_args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",  # Overcome limited resource problems
+            "--disable-gpu",
+            "--disable-web-security",
+            "--disable-features=VizDisplayCompositor",
+            "--remote-debugging-port=9222",
+        ],
+    )
     page = await browser.get(BASE_URL)
     await page.wait_for_ready_state("complete")
     # await page.wait_for(selector="#js-json-data-prefetched-data", timeout=15)
