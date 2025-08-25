@@ -1,11 +1,12 @@
 import json
+import re
 import time
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
-import cloudscraper
 import requests
+import zendriver as zd
 from bs4 import BeautifulSoup
 from discord import Embed
 from discord.webhook import SyncWebhook
@@ -34,23 +35,30 @@ if CACHE_PATH.exists():
 discord_session = requests.Session()
 webhook = SyncWebhook.from_url(url=config["webhook_url"], session=discord_session)
 
-scraper = cloudscraper.create_scraper()
-
 
 def save_cache():
     with open(CACHE_PATH, "w") as f:
         json.dump(cache, f, indent=4)
 
 
-def get_listings():
-    r = scraper.get(BASE_URL)
-    soup = BeautifulSoup(r.text, "html.parser")
-    # get the json content of the script tag with id js-json-data-prefetched-data
-    script = soup.find("script", id="js-json-data-prefetched-data")
-    if not script:
-        raise Exception("Could not find prefetched data")
-    json_content = json.loads(script.string)
-    blades = json_content["/i/layouts/homepage"]["blades"]
+async def get_listings():
+    browser = await zd.start(headless=False)
+    page = await browser.get(BASE_URL)
+    await page.wait_for_ready_state("complete")
+    # await page.wait_for(selector="#js-json-data-prefetched-data", timeout=15)
+    script_element = await page.find("#js-json-data-prefetched-data", best_match=True)
+
+    script_html = await script_element.get_html()
+    await browser.stop()
+    match = re.search(r"<script[^>]*>(.*?)</script>", script_html, re.DOTALL)
+    if match:
+        script_content = match.group(1).strip()
+
+        data = json.loads(script_content)
+    else:
+        raise Exception("Could not extract script content")
+
+    blades = data["/i/layouts/homepage"]["blades"]
     # find blade with title starting with Limited-Time Free
     blade = next(blade for blade in blades if blade["title"].startswith("Limited-Time Free"))
     if not blade:
@@ -105,9 +113,9 @@ def send_to_discord(listing):
     save_cache()
 
 
-def main():
+async def main():
     try:
-        listings = get_listings()
+        listings = await get_listings()
         for listing in listings:
 
             uid = listing["uid"]
